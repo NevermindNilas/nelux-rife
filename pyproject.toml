@@ -3,8 +3,8 @@ name = "nelux-rife"
 version = "0.1.0"
 description = "RIFE frame interpolation for Nelux, a port of vs-rife."
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 keywords = ["Nelux", "PyTorch", "RIFE", "frame interpolation"]
 
 [tool.nelux-plugin]

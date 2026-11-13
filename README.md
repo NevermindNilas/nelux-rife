@@ -50,5 +50,6 @@ clip = clip.rife.interpolate(model="4.25", factor=Fraction(5, 2), scene="duplica
 
 ## Licence
 
-MIT. The model code and the structure of the port are from vs-rife, Copyright (c) 2021 HolyWu, which
-packages [Practical-RIFE](https://github.com/hzwer/Practical-RIFE) (MIT).
+All rights reserved; see [LICENSE](LICENSE). The code taken from and ported from vs-rife,
+Copyright (c) 2021 HolyWu, remains under the MIT licence; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
