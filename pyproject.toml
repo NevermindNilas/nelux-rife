@@ -1,0 +1,23 @@
+[project]
+name = "nelux-rife"
+version = "0.1.0"
+description = "RIFE frame interpolation for Nelux, a port of vs-rife."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["Nelux", "PyTorch", "RIFE", "frame interpolation"]
+
+[tool.nelux-plugin]
+filters = ["nelux_rife.interpolate:Rife", "nelux_rife.sc_detect:SceneChange"]
+# Proposed: composites run once at graph build and ship as source in the wheel.
+composites = ["nelux_rife.composite:rife"]
+# vs-rife is CUDA only.
+targets = ["cuda"]
+
+# Proposed: the subset of Rife.variants this wheel ships. The class declares all
+# 630 combinations per target; building them all is not realistic (PORTING.md).
+[tool.nelux-plugin.variants.interpolate]
+model = ["4.25", "4.26", "4.25.lite", "4.26.heavy"]
+scale = [0.5, 1.0]
+ensemble = [false]
+precision = ["fp32", "fp16"]
