@@ -59,7 +59,7 @@ without the proxy executor; that hasn't been tested.
 | Windows as separate `forward` arguments | `SceneChange.forward(current, following)` | Proposed (§7, open decision 4) |
 | `timesteps = "any"` | Rejecting midpoint-only models | Designed (§6.1), not built |
 | `variants` as an explicit list of combinations | Excluding `ensemble=True` for the 9 models that raise on it | **New, not in the design** |
-| Attributes set in `__init__` override the class per variant | `size_multiple` depends on the model and `scale`; the frame format `input` depends on `precision` | Proposed (§7), not built |
+| Attributes set in `__init__` override the class per variant | `size_multiple` depends on the model and `scale`; the frame format `input` depends on `precision` | Built in the SDK |
 | `[tool.nelux-plugin.variants]` in `pyproject.toml` to pick which variants ship | Keeping the wheel buildable | **New, not in the design** |
 | `composites` in `pyproject.toml`, shipped as source in the wheel | `clip.rife.rife(...)` | Runtime named in §3.1; registration and packaging not designed |
 | `min_size = 2` | vs-rife accepts any size | Supported today |
@@ -78,8 +78,9 @@ without the proxy executor; that hasn't been tested.
 2. **Per-variant attributes.** `size_multiple` depends on the model and `scale`, and the frame
    format depends on `precision`, but the SDK only reads class attributes. Without per-variant
    formats, FP16 variants would receive FP32 frames and cast them inside the plugin: twice the
-   frame memory and bandwidth at both ends, unlike vs-rife's RGBH path. Design §7 now proposes
-   that attributes set in `__init__` override the class for that variant; this port relies on it.
+   frame memory and bandwidth at both ends, unlike vs-rife's RGBH path. Solved: the SDK now lets
+   attributes set in `__init__` override the class for that variant (design §7), and this port uses
+   that for both.
 3. **Composite packaging.** A composite is plugin Python run at graph build. The design keeps plugin
    code out of `import nelux`, so this is allowed, but the wheel layout, the import rules and how a
    composite is exposed as `clip.ns.name` aren't designed yet.

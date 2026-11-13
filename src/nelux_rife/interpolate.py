@@ -54,8 +54,7 @@ class Rife(Interpolator):
         version = VERSIONS[model]
         self.dtype = torch.half if precision == "fp16" else torch.float
 
-        # Proposed SDK extension: attributes set in __init__ override the class
-        # per variant (design §7).
+        # Attributes set in __init__ override the class for this variant (design §7).
         #
         # vs-rife: RGBH clips run in FP16 and RGBS clips in FP32, frames
         # included. FP16 variants take and return FP16 frames, so Nelux converts
