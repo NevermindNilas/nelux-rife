@@ -28,7 +28,7 @@ assumes and the problems it exposed.
 | `frame_to_tensor` / `tensor_to_frame` through NumPy, with a host copy each way | None. Frames stay tensors on the GPU |
 | `torch.export` + Torch-TensorRT on the user's machine at first use, cached per GPU, shape and TensorRT version | AOTInductor at `nelux-plugin build`, on the author's machine, once |
 | `auto_download`, `python -m vsrife` | `weights.fetch(url, sha256)` at build time. Users never download weights |
-| RGBH means FP16, RGBS means FP32 | `precision` build-time argument. `composite.py` exposes it as `fp16=` |
+| RGBH means FP16, RGBS means FP32, frames included | `precision` build-time argument. FP16 variants declare FP16 frames, so Nelux converts decoded frames straight to half precision and nothing is cast inside the plugin. `composite.py` exposes it as `fp16=` |
 | `device_index` | The reserved `device` argument |
 | `torch.set_float32_matmul_precision("high")`, so TF32 | The host's TF32 setting (design §7) |
 | The 200-line `match model:` block | `versions.py`, one line of data per model |
@@ -59,7 +59,7 @@ without the proxy executor; that hasn't been tested.
 | Windows as separate `forward` arguments | `SceneChange.forward(current, following)` | Proposed (§7, open decision 4) |
 | `timesteps = "any"` | Rejecting midpoint-only models | Designed (§6.1), not built |
 | `variants` as an explicit list of combinations | Excluding `ensemble=True` for the 9 models that raise on it | **New, not in the design** |
-| Attributes set in `__init__` override the class per variant | `size_multiple` depends on the model and on `scale` | **New, not in the design** |
+| Attributes set in `__init__` override the class per variant | `size_multiple` depends on the model and `scale`; the frame format `input` depends on `precision` | Proposed (§7), not built |
 | `[tool.nelux-plugin.variants]` in `pyproject.toml` to pick which variants ship | Keeping the wheel buildable | **New, not in the design** |
 | `composites` in `pyproject.toml`, shipped as source in the wheel | `clip.rife.rife(...)` | Runtime named in §3.1; registration and packaging not designed |
 | `min_size = 2` | vs-rife accepts any size | Supported today |
@@ -75,16 +75,15 @@ without the proxy executor; that hasn't been tested.
    - compile one artifact per architecture with weights loaded at run time, since many versions
      share code (4.2–4.4, 4.7–4.9, 4.10–4.12);
    - reconsider compiling on the user's machine as an opt-in.
-2. **Per-variant attributes.** `size_multiple` depends on build-time arguments, and the SDK only reads
-   class attributes. The same will apply to `min_size`, `max_batch` and `tolerance` for other
-   plugins.
-3. **Input format per variant.** vs-rife's FP16 mode takes FP16 frames. Here the input format is
-   fixed per class, so FP16 variants receive FP32 frames and cast them inside `prepare` and
-   `forward`, which costs a little bandwidth.
-4. **Composite packaging.** A composite is plugin Python run at graph build. The design keeps plugin
+2. **Per-variant attributes.** `size_multiple` depends on the model and `scale`, and the frame
+   format depends on `precision`, but the SDK only reads class attributes. Without per-variant
+   formats, FP16 variants would receive FP32 frames and cast them inside the plugin: twice the
+   frame memory and bandwidth at both ends, unlike vs-rife's RGBH path. Design §7 now proposes
+   that attributes set in `__init__` override the class for that variant; this port relies on it.
+3. **Composite packaging.** A composite is plugin Python run at graph build. The design keeps plugin
    code out of `import nelux`, so this is allowed, but the wheel layout, the import rules and how a
    composite is exposed as `clip.ns.name` aren't designed yet.
-5. **Model choice fails late.** vs-rife checks `model in models` up front. Here an unknown model,
+4. **Model choice fails late.** vs-rife checks `model in models` up front. Here an unknown model,
    or one the wheel doesn't ship, fails when the graph is built. That's the same point in the
    script, but the error has to come from the variant lookup, and it should list the combinations
    that are installed.

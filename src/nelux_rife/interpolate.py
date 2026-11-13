@@ -16,6 +16,7 @@ Interleave / DuplicateFrames / [::den],   the timeline: ``factor=``, ``fps=``
 ``_SceneChangeNext`` returns f[0]         ``scene="duplicate"``
 pad to ``tmp``, crop ``[:h, :w]``         ``size_multiple`` + ``pad_mode``
 frame_to_tensor / tensor_to_frame         none: frames are already tensors
+RGBH runs FP16, RGBS runs FP32            ``precision`` sets the frame format
 TensorRT engine build at first run        AOTInductor at ``nelux-plugin build``
 ``auto_download`` / ``python -m vsrife``  ``weights.fetch`` at build time
 ========================================  =====================================
@@ -53,9 +54,15 @@ class Rife(Interpolator):
         version = VERSIONS[model]
         self.dtype = torch.half if precision == "fp16" else torch.float
 
-        # vs-rife: tmp = max(modulo, int(modulo / scale)), then pad up to it.
         # Proposed SDK extension: attributes set in __init__ override the class
-        # per variant, because the modulo depends on the model and the scale.
+        # per variant (design §7).
+        #
+        # vs-rife: RGBH clips run in FP16 and RGBS clips in FP32, frames
+        # included. FP16 variants take and return FP16 frames, so Nelux converts
+        # decoded frames straight to half precision and nothing is cast here.
+        # The output format follows the input.
+        self.input = dict(dtype="float16" if precision == "fp16" else "float32")
+        # vs-rife: tmp = max(modulo, int(modulo / scale)), then pad up to it.
         self.size_multiple = max(version.modulo, int(version.modulo / scale))
 
         # vs-rife's init_module().
@@ -76,10 +83,9 @@ class Rife(Interpolator):
 
     def prepare(self, frame):
         # vs-rife's encoding(): the padded frame and its features, once per source frame.
-        img = frame.to(self.dtype)
         if self.encode is None:
-            return img
-        return img, self.encode(img)
+            return frame
+        return frame, self.encode(frame)
 
     def forward(self, a, b, t):
         if self.encode is None:
@@ -102,7 +108,7 @@ class Rife(Interpolator):
         backwarp_tenGrid = torch.cat([tenHorizontal, tenVertical], 1)
 
         # vs-rife: torch.full([1, 1, ph, pw], t, dtype=dtype), one t per frame here.
+        # t always arrives as float32, so this is the one cast left.
         timestep = t.to(self.dtype).view(n, 1, 1, 1).expand(n, 1, ph, pw)
 
-        output = self.flownet(img0, img1, timestep, tenFlow_div, backwarp_tenGrid, *features)
-        return output.float()
+        return self.flownet(img0, img1, timestep, tenFlow_div, backwarp_tenGrid, *features)
