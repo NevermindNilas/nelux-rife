@@ -61,6 +61,13 @@ class Rife(Interpolator):
         # decoded frames straight to half precision and nothing is cast here.
         # The output format follows the input.
         self.input = dict(dtype="float16" if precision == "fp16" else "float32")
+        if precision == "fp16":
+            # The build compares compiled with eager FP16, and FP16 rounding differs
+            # between them. Measured on 4.25: on the SDK's noisy validation frames,
+            # compiled differs from eager by up to 0.073, while eager FP16 is itself
+            # 0.086 from FP32 and compiled 0.073, so this is not a compile error. On
+            # real motion all three agree within 0.003.
+            self.tolerance = 0.1
         # vs-rife: tmp = max(modulo, int(modulo / scale)), then pad up to it.
         self.size_multiple = max(version.modulo, int(version.modulo / scale))
 

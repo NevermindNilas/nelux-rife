@@ -33,6 +33,18 @@ assumes and the problems it exposed.
 | `torch.set_float32_matmul_precision("high")`, so TF32 | The host's TF32 setting (design §7) |
 | The 200-line `match model:` block | `versions.py`, one line of data per model |
 
+## Built so far
+
+`Rife` for model 4.25, in both precisions, builds with the SDK on CUDA and passes its validation:
+export with dynamic sizes, multi-architecture kernels, no proxy executor, and agreement with eager
+execution. The full class can't be built yet, because the SDK doesn't take an explicit variant list
+(see below).
+
+| Variant | Size | Manifest overrides |
+|---|---|---|
+| 4.25, FP32 | 31.1 MB | `input.size_multiple = 64` |
+| 4.25, FP16 | 19.9 MB | `input.size_multiple = 64`, `input.dtype` and `output.dtype` = `"float16"` |
+
 ## Changes to the model code
 
 Only `IFNet_HDv3_v4_0.py` and `IFNet_HDv3_v4_1.py` change; `diff` them against upstream to see the
@@ -75,16 +87,34 @@ without the proxy executor; that hasn't been tested.
    - compile one artifact per architecture with weights loaded at run time, since many versions
      share code (4.2–4.4, 4.7–4.9, 4.10–4.12);
    - reconsider compiling on the user's machine as an opt-in.
+
+   A spike on 4.26 (2026-11-14) settled two of these questions:
+   - **Shared weights work.** Without its weights, a scale's artifact shrinks from 28.6 MB to about
+     6 MB. Two artifacts loaded with one shared 22.7 MB set used no extra GPU memory and stayed
+     within 3e-5 of vs-rife. AOTInductor's `CreateWithExternalConstants` exists in torch 2.14 and
+     2.15; our C++ host doesn't use it yet.
+   - **One artifact for every scale doesn't work, for two reasons.** `torch.cond` with dynamic
+     frame sizes crashes AOTInductor's compile with an illegal memory access on both 2.14 and 2.15,
+     even with identical branches. And RIFE's output depends on its zero padding: padding a 1080p
+     frame to 256 instead of vs-rife's multiple changes 8% of values by more than one 8-bit level at
+     scale 1.0, and 70% at scale 0.5. So each scale stays its own variant with its own
+     `size_multiple`, which is exactly what this port declares.
 2. **Per-variant attributes.** `size_multiple` depends on the model and `scale`, and the frame
    format depends on `precision`, but the SDK only reads class attributes. Without per-variant
    formats, FP16 variants would receive FP32 frames and cast them inside the plugin: twice the
    frame memory and bandwidth at both ends, unlike vs-rife's RGBH path. Solved: the SDK now lets
    attributes set in `__init__` override the class for that variant (design §7), and this port uses
    that for both.
-3. **Composite packaging.** A composite is plugin Python run at graph build. The design keeps plugin
+3. **FP16 needs a looser build tolerance.** The SDK validates each artifact against eager execution
+   at the same precision. With FP16, the two round differently, and RIFE amplifies that on the SDK's
+   noisy validation frames: compiled differed from eager by 0.073 on 4.25. That's precision noise,
+   not a compile error. Eager FP16 is itself 0.086 from FP32 on those frames, compiled FP16 0.073,
+   and on real motion all three agree within 0.003. FP16 variants therefore set `tolerance = 0.1`.
+   A better check would compare both against an FP32 reference, which the SDK doesn't do yet.
+4. **Composite packaging.** A composite is plugin Python run at graph build. The design keeps plugin
    code out of `import nelux`, so this is allowed, but the wheel layout, the import rules and how a
    composite is exposed as `clip.ns.name` aren't designed yet.
-4. **Model choice fails late.** vs-rife checks `model in models` up front. Here an unknown model,
+5. **Model choice fails late.** vs-rife checks `model in models` up front. Here an unknown model,
    or one the wheel doesn't ship, fails when the graph is built. That's the same point in the
    script, but the error has to come from the variant lookup, and it should list the combinations
    that are installed.
