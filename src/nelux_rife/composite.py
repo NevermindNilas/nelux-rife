@@ -10,11 +10,13 @@ Differences from vs-rife's ``rife()``:
 - ``fp16`` replaces vs-rife's choice by clip format (RGBH or RGBS). Nelux
   converts formats between nodes, so precision is a choice, not a property of
   the clip.
-- ``auto_download`` is gone: weights are compiled into the plugin.
+- ``auto_download`` is gone: prebuilt artifacts have the weights compiled in. A user who
+  opts in to compiling a configuration locally fetches them then, as vs-rife does.
 - The ``trt_*`` arguments are gone: the kernels were compiled with AOTInductor
   when the plugin was built.
 - ``model``, ``scale`` and ``ensemble`` pick a precompiled variant. A
-  combination the installed wheel doesn't contain fails at graph build.
+  combination that is neither in the installed wheel nor compiled locally (opt-in)
+  fails at graph build.
 """
 
 from fractions import Fraction

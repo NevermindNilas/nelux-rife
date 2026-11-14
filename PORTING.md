@@ -26,8 +26,8 @@ assumes and the problems it exposed.
 | Padding to `max(modulo, int(modulo / scale))` with zeros, then cropping `[:h, :w]` | `size_multiple` with `pad_mode = "constant"`. Nelux pads and crops |
 | `tenFlow_div` and `backwarp_tenGrid` precomputed for one padded size | Computed from the frame's shape inside `forward`, so one artifact serves every resolution. `tenFlow_div` is a pair of numbers, not a tensor; `warplayer.py` only indexes it |
 | `frame_to_tensor` / `tensor_to_frame` through NumPy, with a host copy each way | None. Frames stay tensors on the GPU |
-| `torch.export` + Torch-TensorRT on the user's machine at first use, cached per GPU, shape and TensorRT version | AOTInductor at `nelux-plugin build`, on the author's machine, once |
-| `auto_download`, `python -m vsrife` | `weights.fetch(url, sha256)` at build time. Users never download weights |
+| `torch.export` + Torch-TensorRT on the user's machine at first use, cached per GPU, shape and TensorRT version | AOTInductor at `nelux-plugin build`, prebuilt once on a machine with a GPU: a GPU CI runner or the author's own. Users with a GPU, a C/C++ compiler and Triton can opt in to compiling configurations the wheel doesn't ship (design §7) |
+| `auto_download`, `python -m vsrife` | `weights.fetch(url, sha256)` at build time. Users of prebuilt artifacts never download weights; an opt-in local compile fetches them, as vs-rife does |
 | RGBH means FP16, RGBS means FP32, frames included | `precision` build-time argument. FP16 variants declare FP16 frames, so Nelux converts decoded frames straight to half precision and nothing is cast inside the plugin. `composite.py` exposes it as `fp16=` |
 | `device_index` | The reserved `device` argument |
 | `torch.set_float32_matmul_precision("high")`, so TF32 | The host's TF32 setting (design §7) |
@@ -74,6 +74,7 @@ without the proxy executor; that hasn't been tested.
 | Attributes set in `__init__` override the class per variant | `size_multiple` depends on the model and `scale`; the frame format `input` depends on `precision` | Built in the SDK |
 | `[tool.nelux-plugin.variants]` in `pyproject.toml` to pick which variants ship | Keeping the wheel buildable | **New, not in the design** |
 | `composites` in `pyproject.toml`, shipped as source in the wheel | `clip.rife.rife(...)` | Runtime named in §3.1; registration and packaging not designed |
+| Opt-in local compile of configurations the wheel doesn't ship | Models, scales and precisions outside `pyproject.toml`'s subset | Decided (§7), not built |
 | `min_size = 2` | vs-rife accepts any size | Supported today |
 
 ## Problems the port exposed
@@ -86,7 +87,13 @@ without the proxy executor; that hasn't been tested.
    - ship a curated subset, as `pyproject.toml` does here;
    - compile one artifact per architecture with weights loaded at run time, since many versions
      share code (4.2–4.4, 4.7–4.9, 4.10–4.12);
-   - reconsider compiling on the user's machine as an opt-in.
+   - compile on the user's machine.
+
+   Decided (design §7): prebuilt is the default, and compiling locally is opt-in for users who have a
+   GPU, a C/C++ compiler and Triton. A CUDA build can't run on a CPU-only CI runner: torch 2.15's
+   AOTInductor needs a GPU to generate kernels. For this port, the wheel ships the subset in
+   `pyproject.toml`, built on a GPU runner, and any other model, scale or precision is one explicit
+   local compile away.
 
    A spike on 4.26 (2026-11-14) settled two of these questions:
    - **Shared weights work.** Without its weights, a scale's artifact shrinks from 28.6 MB to about
@@ -116,5 +123,5 @@ without the proxy executor; that hasn't been tested.
    composite is exposed as `clip.ns.name` aren't designed yet.
 5. **Model choice fails late.** vs-rife checks `model in models` up front. Here an unknown model,
    or one the wheel doesn't ship, fails when the graph is built. That's the same point in the
-   script, but the error has to come from the variant lookup, and it should list the combinations
-   that are installed.
+   script, but the error has to come from the variant lookup. It should list the combinations that
+   are installed and show how to compile the missing one locally.

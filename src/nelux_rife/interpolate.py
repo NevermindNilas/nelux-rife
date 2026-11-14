@@ -17,7 +17,8 @@ Interleave / DuplicateFrames / [::den],   the timeline: ``factor=``, ``fps=``
 pad to ``tmp``, crop ``[:h, :w]``         ``size_multiple`` + ``pad_mode``
 frame_to_tensor / tensor_to_frame         none: frames are already tensors
 RGBH runs FP16, RGBS runs FP32            ``precision`` sets the frame format
-TensorRT engine build at first run        AOTInductor at ``nelux-plugin build``
+TensorRT engine build at first run        AOTInductor at ``nelux-plugin build``,
+                                          prebuilt; local compile is opt-in
 ``auto_download`` / ``python -m vsrife``  ``weights.fetch`` at build time
 ========================================  =====================================
 """
